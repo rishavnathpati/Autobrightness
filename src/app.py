@@ -5,11 +5,10 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QPushButton,
     QLabel,
-    QTimer,
-    QSystemTrayIcon,
+    QSystemTrayIcon
 )
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QFont
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 import numpy as np
 from .tray_icon_manager import TrayIconManager
 from .webcam_controller import WebcamController
