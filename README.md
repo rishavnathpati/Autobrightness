@@ -2,8 +2,8 @@
 
 This is an Auto Brightness application developed using PyQt5, OpenCV, and WMI. The application captures the luminance from the webcam feed and adjusts the screen brightness accordingly.
 
-![Auto Brightness Application](image.png)
-![alt text](image-1.png)
+![Auto Brightness Application](images/image.png)
+![alt text](images/image-1.png)
 
 ## Features
 
