@@ -52,7 +52,7 @@ cd auto_brightness
 
 ```bash
 python -m venv venv
-source venv/bin/activate   # On Windows use `venv\Scripts\activate`
+source venv/bin/activate   # On Windows use `venv\Scripts\activate` or you can also use conda
 ```
 
 3. Install the dependencies:
@@ -78,6 +78,30 @@ python main.py
 - Click the "Stop" button to stop the webcam feed.
 - The application minimizes to the system tray. You can show or hide the main window by double-clicking the tray icon.
 
+## Building the Executable
+
+To build the executable using PyInstaller, follow these steps:
+
+Install PyInstaller:
+
+```bash
+pip install pyinstaller
+```
+
+Create the executable:
+
+```bash
+pyinstaller --name AutoBrightness --onefile --windowed --icon=icon.ico main.py
+```
+
+- The --name option specifies the name of the executable.
+- The --onefile option bundles everything into a single executable.
+- The --windowed option prevents a console window from appearing when you run the application (useful for GUI applications).
+- The --icon option specifies the icon file for the application.
+
+Locate the Executable:
+After the build process completes, you will find the executable file in the dist directory inside your project folder.
+
 ## License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
@@ -87,5 +111,3 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - PyQt5
 - OpenCV
 - WMI
-
-```
