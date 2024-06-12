@@ -13,15 +13,6 @@ class AutoBrightnessApp(QWidget):
         self.webcam_controller = WebcamController(self)
         self.brightness_controller = BrightnessController()
 
-    def initUI(self):
-        self.gui = AutoBrightnessGUI(self)
-        self.gui.start_button.clicked.connect(self.start_webcam)
-        self.gui.stop_button.clicked.connect(self.stop_webcam)
-        self.gui.brightness_slider.valueChanged.connect(
-            self.update_brightness_threshold
-        )
-        self.gui.exposure_slider.valueChanged.connect(self.update_exposure)
-
     def initTrayIcon(self):
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.setIcon(QIcon("icon.png"))  # Replace with your icon file

@@ -143,6 +143,14 @@ class AutoBrightnessApp(QWidget):
             painter.end()
             self.luminance_label.setPixmap(QPixmap.fromImage(q_img))
 
+    def set_brightness(self, level):
+        try:
+            wmi_interface = wmi.WMI(namespace="wmi")
+            methods = wmi_interface.WmiMonitorBrightnessMethods()[0]
+            methods.WmiSetBrightness(int(level), 0)
+        except wmi.x_wmi as e:
+            print(f"Error setting brightness: {str(e)}")
+
     def onTrayIconActivated(self, reason):
         if reason == QSystemTrayIcon.DoubleClick:
             if self.isHidden():
