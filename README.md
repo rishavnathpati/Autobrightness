@@ -19,12 +19,17 @@ auto_brightness/
 │
 ├── main.py
 ├── requirements.txt
+├── README.md
+├── screenshots/
+│   ├── image-1.png
+│   └── image.png
 └── src/
     ├── __init__.py
     ├── app.py
     ├── tray_icon_manager.py
     ├── webcam_controller.py
     └── ui.py
+
 ```
 
 - `main.py`: The entry point of the application.
@@ -82,4 +87,5 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 - PyQt5
 - OpenCV
 - WMI
+
 ```
