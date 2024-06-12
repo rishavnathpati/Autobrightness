@@ -1,7 +1,7 @@
 from PyQt5.QtWidgets import QWidget, QSystemTrayIcon, QMenu, QAction, QApplication
 from PyQt5.QtGui import QIcon
-from src.gui import AutoBrightnessGUI
-from src.camera import WebcamController
+from tray_icon_manager import AutoBrightnessGUI
+from webcam_controller import WebcamController
 from src.brightness import BrightnessController
 
 
