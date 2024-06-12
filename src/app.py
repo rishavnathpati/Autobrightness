@@ -1,51 +1,87 @@
-from PyQt5.QtWidgets import QWidget, QSystemTrayIcon, QMenu, QAction, QApplication
-from PyQt5.QtGui import QIcon
-from tray_icon_manager import AutoBrightnessGUI
-from webcam_controller import WebcamController
-from src.brightness import BrightnessController
+from PyQt5.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QPushButton,
+    QLabel,
+    QTimer,
+    QSystemTrayIcon,
+)
+from PyQt5.QtGui import QImage, QPixmap, QPainter, QFont
+from PyQt5.QtCore import Qt
+import numpy as np
+from .tray_icon_manager import TrayIconManager
+from .webcam_controller import WebcamController
+from .ui import create_controls_group, create_luminance_group
 
 
 class AutoBrightnessApp(QWidget):
     def __init__(self):
         super().__init__()
+        self.tray_icon_manager = TrayIconManager(self)
         self.initUI()
-        self.initTrayIcon()
-        self.webcam_controller = WebcamController(self)
-        self.brightness_controller = BrightnessController()
 
-    def initTrayIcon(self):
-        self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(QIcon("icon.png"))  # Replace with your icon file
-        self.tray_icon.setVisible(True)
+    def initUI(self):
+        layout = QVBoxLayout()
 
-        self.tray_menu = QMenu(self)
-        self.show_action = QAction("Show", self)
-        self.show_action.triggered.connect(self.show)
-        self.hide_action = QAction("Hide", self)
-        self.hide_action.triggered.connect(self.hide)
-        self.quit_action = QAction("Quit", self)
-        self.quit_action.triggered.connect(QApplication.quit)
-        self.tray_menu.addAction(self.show_action)
-        self.tray_menu.addAction(self.hide_action)
-        self.tray_menu.addSeparator()
-        self.tray_menu.addAction(self.quit_action)
+        self.luminance_label = QLabel()
+        luminance_group = create_luminance_group(self.luminance_label)
+        layout.addWidget(luminance_group)
 
-        self.tray_icon.setContextMenu(self.tray_menu)
-        self.tray_icon.activated.connect(self.onTrayIconActivated)
+        controls_group, self.brightness_slider, self.exposure_slider = (
+            create_controls_group()
+        )
+        layout.addWidget(controls_group)
+
+        buttons_group = QGroupBox("Actions")
+        buttons_layout = QHBoxLayout()
+        self.start_button = QPushButton("Start")
+        self.start_button.clicked.connect(self.start_webcam)
+        self.stop_button = QPushButton("Stop")
+        self.stop_button.clicked.connect(self.stop_webcam)
+        self.stop_button.setEnabled(False)
+        buttons_layout.addWidget(self.start_button)
+        buttons_layout.addWidget(self.stop_button)
+        buttons_group.setLayout(buttons_layout)
+        layout.addWidget(buttons_group)
+
+        self.setLayout(layout)
+        self.setWindowTitle("Auto Brightness")
+        self.show()
 
     def start_webcam(self):
+        self.webcam_controller = WebcamController(
+            self.brightness_slider, self.exposure_slider
+        )
         self.webcam_controller.start_webcam()
-        self.hide()
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_luminance_display)
+        self.timer.start(100)
+        self.start_button.setEnabled(False)
+        self.stop_button.setEnabled(True)
 
     def stop_webcam(self):
         self.webcam_controller.stop_webcam()
-        self.show()
+        self.start_button.setEnabled(True)
+        self.stop_button.setEnabled(False)
 
-    def update_brightness_threshold(self, value):
-        self.webcam_controller.set_brightness_threshold(value)
-
-    def update_exposure(self, value):
-        self.webcam_controller.set_exposure(value)
+    def update_luminance_display(self):
+        luminance = self.webcam_controller.current_brightness or 0
+        brightness = (
+            int(self.webcam_controller.current_brightness)
+            if self.webcam_controller.current_brightness is not None
+            else 0
+        )
+        luminance_image = np.full((200, 200), luminance, dtype=np.uint8)
+        q_img = QImage(luminance_image.data, 200, 200, QImage.Format_Grayscale8)
+        painter = QPainter(q_img)
+        painter.setPen(Qt.black)
+        painter.setFont(QFont("Arial", 12))
+        painter.drawText(10, 30, f"Luminance: {luminance:.2f}")
+        painter.drawText(10, 50, f"Brightness: {brightness}")
+        painter.end()
+        self.luminance_label.setPixmap(QPixmap.fromImage(q_img))
 
     def onTrayIconActivated(self, reason):
         if reason == QSystemTrayIcon.DoubleClick:
@@ -55,5 +91,5 @@ class AutoBrightnessApp(QWidget):
                 self.hide()
 
     def closeEvent(self, event):
-        self.webcam_controller.stop_webcam()
+        self.stop_webcam()
         event.accept()
