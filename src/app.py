@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QPushButton,
     QLabel,
-    QSystemTrayIcon
+    QSystemTrayIcon,
 )
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QFont
 from PyQt5.QtCore import Qt, QTimer
@@ -28,9 +28,12 @@ class AutoBrightnessApp(QWidget):
         luminance_group = create_luminance_group(self.luminance_label)
         layout.addWidget(luminance_group)
 
-        controls_group, self.brightness_slider, self.exposure_slider = (
-            create_controls_group()
-        )
+        (
+            controls_group,
+            self.brightness_slider,
+            self.exposure_slider,
+            self.reset_button,
+        ) = create_controls_group()
         layout.addWidget(controls_group)
 
         buttons_group = QGroupBox("Actions")
