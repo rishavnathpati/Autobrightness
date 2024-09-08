@@ -3,7 +3,8 @@ import numpy as np
 import sys
 from PyQt6.QtCore import QTimer, pyqtSignal, QObject
 from PyQt6.QtGui import QImage, QPixmap
-from AppKit import NSScreen
+import screen_brightness_control as sbc
+import objc
 
 class WebcamController(QObject):
     frame_ready = pyqtSignal(QPixmap, float, int)
@@ -17,10 +18,11 @@ class WebcamController(QObject):
         self.brightness_slider = brightness_slider
         self.exposure_slider = exposure_slider
         self.current_brightness = None
-        self.is_macos = sys.platform == "darwin"
         self.brightness_control_enabled = True
+        self.is_macos = sys.platform == "darwin"
 
     def start_webcam(self):
+        self.set_camera_properties()
         self.cap = cv2.VideoCapture(0)
         self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.5)
         self.cap.set(cv2.CAP_PROP_EXPOSURE, self.exposure_slider.value())
@@ -58,38 +60,43 @@ class WebcamController(QObject):
             self.set_brightness(int(self.current_brightness))
 
     def set_brightness(self, level):
-        if self.is_macos:
-            self.set_brightness_macos(level)
-        else:
-            self.set_brightness_windows(level)
-
-    def set_brightness_macos(self, level):
         if not self.brightness_control_enabled:
             return
 
         try:
-            level = max(0, min(100, level)) / 100.0  # Convert to 0-1 range
-            screens = NSScreen.screens()
-            if screens:
-                main_screen = screens[0]
-                main_screen.setBrightness_(level)
+            level = max(0, min(100, level))
+            if self.is_macos:
+                self.set_brightness_macos(level)
             else:
-                print("No screens found")
-                self.brightness_control_enabled = False
-                self.permission_error.emit()
+                self.set_brightness_windows(level)
         except Exception as e:
-            print(f"Unexpected error setting brightness on macOS: {str(e)}")
+            print(f"Unexpected error setting brightness: {str(e)}")
             self.brightness_control_enabled = False
             self.permission_error.emit()
+
+    def set_brightness_macos(self, level):
+        import applescript
+        script = applescript.AppleScript(f'''
+            tell application "System Events"
+                set brightness of display 1 to {level / 100}
+            end tell
+        ''')
+        script.run()
 
     def set_brightness_windows(self, level):
         try:
             import wmi
-
             wmi_interface = wmi.WMI(namespace="wmi")
             methods = wmi_interface.WmiMonitorBrightnessMethods()[0]
-            methods.WmiSetBrightness(int(level), 0)
+            methods.WmiSetBrightness(level, 0)
         except ImportError:
             print("WMI module not available. Unable to set brightness on Windows.")
         except Exception as e:
             print(f"Error setting brightness on Windows: {str(e)}")
+
+    def set_camera_properties(self):
+        if self.is_macos:
+            objc.loadBundle('AVFoundation', globals(),
+                            bundle_path='/System/Library/Frameworks/AVFoundation.framework')
+            AVCaptureDevice = objc.lookUpClass('AVCaptureDevice')
+            AVCaptureDevice.defaultDeviceWithMediaType_('vide')  # This line might trigger the property to be set
