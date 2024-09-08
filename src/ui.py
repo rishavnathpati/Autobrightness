@@ -1,9 +1,19 @@
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider, QPushButton,
-    QGroupBox, QGridLayout, QCheckBox, QSpacerItem, QSizePolicy
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QSlider,
+    QPushButton,
+    QGroupBox,
+    QGridLayout,
+    QCheckBox,
+    QSpacerItem,
+    QSizePolicy,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon, QColor
+from PyQt6.QtGui import QFont, QIcon
+
 
 class AutoBrightnessUI(QWidget):
     start_stop_signal = pyqtSignal(bool)
@@ -55,7 +65,7 @@ class AutoBrightnessUI(QWidget):
         )
         self.camera_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         camera_layout.addWidget(self.camera_label)
-        
+
         # Add info label
         self.info_label = QLabel()
         self.info_label.setFixedSize(400, 60)
@@ -67,7 +77,7 @@ class AutoBrightnessUI(QWidget):
         """
         )
         camera_layout.addWidget(self.info_label)
-        
+
         camera_group.setLayout(camera_layout)
         main_layout.addWidget(camera_group)
 
@@ -127,7 +137,11 @@ class AutoBrightnessUI(QWidget):
         main_layout.addWidget(self.start_stop_button)
 
         # Add stretching space
-        main_layout.addItem(QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding))
+        main_layout.addItem(
+            QSpacerItem(
+                20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding
+            )
+        )
 
         self.setLayout(main_layout)
 

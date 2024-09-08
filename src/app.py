@@ -1,10 +1,11 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMessageBox
-from PyQt6.QtCore import QTimer, Qt
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QPixmap, QPainter, QColor, QFont
 from .tray_icon_manager import TrayIconManager
 from .webcam_controller import WebcamController
 from .ui import AutoBrightnessUI
+
 
 class AutoBrightnessApp(AutoBrightnessUI):
     def __init__(self):
@@ -46,8 +47,10 @@ class AutoBrightnessApp(AutoBrightnessUI):
 
     def update_display(self, pixmap, luminance, brightness):
         # Update camera view with the grayscale image
-        self.camera_label.setPixmap(pixmap.scaled(400, 300, aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio))
-        
+        self.camera_label.setPixmap(
+            pixmap.scaled(400, 300, aspectRatioMode=Qt.AspectRatioMode.KeepAspectRatio)
+        )
+
         # Update luminance and brightness information
         info_pixmap = QPixmap(400, 60)
         info_pixmap.fill(QColor(58, 66, 84))  # Fill with the background color
@@ -64,7 +67,9 @@ class AutoBrightnessApp(AutoBrightnessUI):
     def show_permission_error(self):
         if not self.permission_error_shown:
             self.permission_error_shown = True
-            QMessageBox.warning(self, "Permission Error", 
+            QMessageBox.warning(
+                self,
+                "Permission Error",
                 "Unable to adjust screen brightness. Please follow these steps to grant permission:\n\n"
                 "1. Open System Preferences\n"
                 "2. Go to Security & Privacy\n"
@@ -73,7 +78,8 @@ class AutoBrightnessApp(AutoBrightnessUI):
                 "5. Click the lock icon to make changes\n"
                 "6. Check the box next to your application\n"
                 "7. Restart the application\n\n"
-                "Brightness control will be disabled until permissions are granted.")
+                "Brightness control will be disabled until permissions are granted.",
+            )
 
     def onTrayIconActivated(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.Trigger:
@@ -85,6 +91,7 @@ class AutoBrightnessApp(AutoBrightnessUI):
     def closeEvent(self, event):
         self.stop_webcam()
         event.accept()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

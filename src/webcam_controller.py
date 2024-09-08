@@ -1,10 +1,9 @@
 import cv2
 import numpy as np
 import sys
-import subprocess
 from PyQt6.QtCore import QTimer, pyqtSignal, QObject
 from PyQt6.QtGui import QImage, QPixmap
-from PyQt6.QtWidgets import QMessageBox
+from AppKit import NSScreen
 
 class WebcamController(QObject):
     frame_ready = pyqtSignal(QPixmap, float, int)
@@ -46,13 +45,15 @@ class WebcamController(QObject):
                 self.current_brightness = (
                     1 - smoothing_factor
                 ) * self.current_brightness + smoothing_factor * target_brightness
-            
+
             # Convert grayscale image to QPixmap
             h, w = gray.shape
             bytes_per_line = w
-            q_image = QImage(gray.data, w, h, bytes_per_line, QImage.Format.Format_Grayscale8)
+            q_image = QImage(
+                gray.data, w, h, bytes_per_line, QImage.Format.Format_Grayscale8
+            )
             pixmap = QPixmap.fromImage(q_image)
-            
+
             self.frame_ready.emit(pixmap, luminance, int(self.current_brightness))
             self.set_brightness(int(self.current_brightness))
 
@@ -67,34 +68,15 @@ class WebcamController(QObject):
             return
 
         try:
-            level = max(0, min(100, level))
-            normalized_level = int((level / 100) * 65535)
-            
-            applescript = f"""
-            tell application "System Events"
-                tell process "SystemUIServer"
-                    try
-                        set value of slider 1 of group 1 of item 1 of menu bar 1 to {normalized_level}
-                        return true
-                    on error
-                        return false
-                    end try
-                end tell
-            end tell
-            """
-            
-            result = subprocess.run(["osascript", "-e", applescript], capture_output=True, text=True, check=False)
-            
-            if result.returncode != 0 or result.stdout.strip() == "false":
+            level = max(0, min(100, level)) / 100.0  # Convert to 0-1 range
+            screens = NSScreen.screens()
+            if screens:
+                main_screen = screens[0]
+                main_screen.setBrightness_(level)
+            else:
+                print("No screens found")
                 self.brightness_control_enabled = False
                 self.permission_error.emit()
-            
-        except subprocess.CalledProcessError as e:
-            print(f"Error setting brightness on macOS: {str(e)}")
-            if e.stderr:
-                print(f"Error details: {e.stderr}")
-            self.brightness_control_enabled = False
-            self.permission_error.emit()
         except Exception as e:
             print(f"Unexpected error setting brightness on macOS: {str(e)}")
             self.brightness_control_enabled = False
