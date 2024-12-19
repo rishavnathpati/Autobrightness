@@ -1,0 +1,23 @@
+{
+    "camera": {
+        "device_index": 0,
+        "fps": 30,
+        "default_exposure": -2
+    },
+    "brightness": {
+        "default_threshold": 190,
+        "smoothing_factor": 0.1,
+        "min_brightness": 0,
+        "max_brightness": 100
+    },
+    "ui": {
+        "window_width": 500,
+        "window_height": 800,
+        "camera_view_width": 400,
+        "camera_view_height": 300
+    },
+    "advanced": {
+        "auto_exposure": false,
+        "smooth_transitions": true
+    }
+}
