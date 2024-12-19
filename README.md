@@ -1,113 +1,119 @@
-# Auto Brightness Application
+# Auto Brightness
 
-This is an Auto Brightness application developed using PyQt6, OpenCV, and WMI. The application captures the luminance from the webcam feed and adjusts the screen brightness accordingly.
-
-![Auto Brightness Application](images/image.png)
-![alt text](images/image-1.png)
+A Python application that automatically adjusts screen brightness based on ambient light using your webcam.
 
 ## Features
 
-- Adjusts screen brightness based on the luminance from the webcam feed.
-- Provides controls to set the brightness threshold and exposure.
-- Minimizes to the system tray and allows showing/hiding the main window.
-- Start and stop the webcam feed with buttons.
+- Automatic brightness adjustment based on ambient light
+- Manual exposure control
+- Smooth brightness transitions
+- Simple, efficient interface
+- Cross-platform support (Windows, macOS, Linux)
 
-## Project Structure
+## Requirements
 
-```
-auto_brightness/
-│
-├── main.py
-├── requirements.txt
-├── README.md
-├── screenshots/
-│   ├── image-1.png
-│   └── image.png
-└── src/
-    ├── __init__.py
-    ├── app.py
-    ├── tray_icon_manager.py
-    ├── webcam_controller.py
-    └── ui.py
-
-```
-
-- `main.py`: The entry point of the application.
-- `src/app.py`: Contains the `AutoBrightnessApp` class which sets up the user interface, integrates the system tray icon, and handles the webcam operations.
-- `src/tray_icon_manager.py`: Manages the system tray icon and its context menu.
-- `src/webcam_controller.py`: Handles the webcam operations and brightness adjustments.
-- `src/ui.py`: Provides functions to create the UI components (luminance display and control sliders).
-- `requirements.txt`: Lists the dependencies required for the project.
+- Python 3.8+
+- Webcam
+- Operating system permissions to adjust screen brightness
 
 ## Installation
 
 1. Clone the repository:
-
 ```bash
-git clone https://github.com/yourusername/auto_brightness.git
-cd auto_brightness
+git clone https://github.com/yourusername/autobrightness.git
+cd autobrightness
 ```
 
-2. Create a virtual environment and activate it:
-
-```bash
-python -m venv venv
-source venv/bin/activate   # On Windows use `venv\Scripts\activate` or you can also use conda
-```
-
-3. Install the dependencies:
-
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Place your icon file (e.g., `icon.png`) in the root directory of the project.
+## Usage
 
-## Running the Application
-
-To run the application, execute the following command:
-
+Run the application:
 ```bash
 python main.py
 ```
 
-## Usage
+### Controls
 
-- Use the sliders to adjust the brightness threshold and exposure.
-- Click the "Start" button to start the webcam feed and automatically adjust the screen brightness.
-- Click the "Stop" button to stop the webcam feed.
-- The application minimizes to the system tray. You can show or hide the main window by double-clicking the tray icon.
+- **Brightness Threshold**: Adjusts how the application maps ambient light to screen brightness
+- **Exposure**: Controls the webcam exposure level
+- **Smooth Transitions**: Enable/disable gradual brightness changes
+- **Reset**: Reset all settings to defaults
+- **Start/Stop**: Toggle automatic brightness adjustment
 
-## Building the Executable
+## Configuration
 
-To build the executable using PyInstaller, follow these steps:
+The application settings are stored in `config.json` in the application directory. Default settings:
 
-Install PyInstaller:
-
-```bash
-pip install pyinstaller
+```json
+{
+    "camera": {
+        "device_index": 0,
+        "fps": 30,
+        "default_exposure": -2
+    },
+    "brightness": {
+        "default_threshold": 190,
+        "smoothing_factor": 0.1,
+        "min_brightness": 0,
+        "max_brightness": 100
+    },
+    "ui": {
+        "preview_width": 360,
+        "preview_height": 270
+    },
+    "advanced": {
+        "smooth_transitions": true
+    }
+}
 ```
 
-Create the executable:
+### Permissions
 
+#### Windows
+No special permissions required.
+
+#### macOS
+The application requires accessibility permissions to control screen brightness:
+1. Open System Preferences
+2. Go to Security & Privacy
+3. Click on the Privacy tab
+4. Select 'Accessibility' from the left sidebar
+5. Click the lock icon to make changes
+6. Check the box next to the application
+7. Restart the application
+
+#### Linux
+Ensure your user has permissions to adjust screen brightness. You may need to add your user to the `video` group:
 ```bash
-pyinstaller --name AutoBrightness --onefile --windowed --icon=icon.ico main.py
+sudo usermod -a -G video $USER
 ```
 
-- The --name option specifies the name of the executable.
-- The --onefile option bundles everything into a single executable.
-- The --windowed option prevents a console window from appearing when you run the application (useful for GUI applications).
-- The --icon option specifies the icon file for the application.
+## Logging
 
-Locate the Executable:
-After the build process completes, you will find the executable file in the dist directory inside your project folder.
+Logs are stored in the `logs` directory with the naming format `autobrightness_YYYYMMDD.log`.
+
+## Project Structure
+
+```
+autobrightness/
+├── logs/
+├── src/
+│   ├── __init__.py
+│   ├── app.py
+│   ├── brightness_control.py
+│   ├── config.py
+│   ├── logger.py
+│   ├── ui.py
+│   └── webcam_controller.py
+├── main.py
+├── requirements.txt
+└── README.md
+```
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## Acknowledgements
-
-- PyQt6
-- OpenCV
-- WMI
+This project is licensed under the MIT License - see the LICENSE file for details.

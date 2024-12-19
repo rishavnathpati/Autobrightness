@@ -1,4 +1,8 @@
-PyQt6
-opencv-python
-numpy
-wmi
+PyQt6>=6.4.0
+opencv-python>=4.8.0
+numpy>=1.24.0
+wmi>=1.5.1; platform_system == "Windows"
+screen-brightness-control>=0.14.0
+pyobjc-framework-Cocoa>=9.0; platform_system == "Darwin"
+pyobjc-framework-AVFoundation>=9.0; platform_system == "Darwin"
+applescript>=2021.2.9; platform_system == "Darwin"
