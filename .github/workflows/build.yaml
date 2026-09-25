@@ -1,68 +1,83 @@
-name: Build and Release
+name: Windows build, test and release
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
         with:
-          python-version: "3.x"
-
-      - name: Install dependencies
+          dotnet-version: '10.0.x'
+      - name: Build
+        run: dotnet build windows/AutoBrightness.slnx -c Release
+      - name: Test the brightness controller with simulated displays
+        run: dotnet run --project windows/AutoBrightness.Tests -c Release --no-build
+      - name: Publish standalone Windows app
+        run: dotnet publish windows/AutoBrightness.App -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -p:DebugType=None -p:DebugSymbols=false -o dist/AutoBrightness
+      - name: Include instructions
+        shell: pwsh
         run: |
-          python -m venv venv
-          .\venv\Scripts\activate
-          pip install -r requirements.txt
-          pip install pyinstaller
-
-      - name: Build executable
-        run: |
-          .\venv\Scripts\activate
-          pyinstaller --name AutoBrightness --onefile --windowed --icon=icon.ico main.py
-
-      - name: Upload to release
-        uses: actions/upload-artifact@v2
+          [xml]$project = Get-Content windows/AutoBrightness.App/AutoBrightness.App.csproj
+          $version = [string]$project.Project.PropertyGroup.Version
+          Copy-Item windows/README.md dist/AutoBrightness/README.md
+          Copy-Item "docs/TEST-REPORT-v$version.md" dist/AutoBrightness/TEST-REPORT.md
+          Copy-Item "docs/releases/v$version.md" dist/AutoBrightness/RELEASE-NOTES.md
+      - uses: actions/upload-artifact@v4
         with:
-          name: AutoBrightness
-          path: dist/AutoBrightness.exe
+          name: AutoBrightness-win-x64
+          path: dist/AutoBrightness/
+          if-no-files-found: error
 
   release:
-    needs: build
-    runs-on: ubuntu-latest
+    needs: windows
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/master' && startsWith(github.event.head_commit.message, 'release: v')
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: windows-release
+      cancel-in-progress: false
     steps:
-      - name: Download artifact
-        uses: actions/download-artifact@v2
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          name: AutoBrightness
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+          name: AutoBrightness-win-x64
+          path: dist/AutoBrightness
+      - name: Package and publish the tested version
+        shell: pwsh
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.sha }}
-          release_name: Release ${{ github.sha }}
-          draft: false
-          prerelease: false
-
-      - name: Upload Release Asset
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: AutoBrightness.exe
-          asset_name: AutoBrightness.exe
-          asset_content_type: application/octet-stream
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [xml]$project = Get-Content windows/AutoBrightness.App/AutoBrightness.App.csproj
+          $version = [string]$project.Project.PropertyGroup.Version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Expected a semantic release version.' }
+          $tag = "v$version"
+          $subject = git log -1 --format=%s
+          if (-not $subject.StartsWith("release: $tag ") -and $subject -ne "release: $tag") {
+            throw 'Release commit subject does not match the project version.'
+          }
+          $notes = "docs/releases/$tag.md"
+          if (-not (Test-Path -LiteralPath $notes)) { throw "Missing release notes: $notes" }
+          gh release view $tag --json tagName 2>$null
+          if ($LASTEXITCODE -eq 0) { throw "Release $tag already exists; it will not be overwritten." }
+          $existingTag = git ls-remote --tags origin "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not inspect remote tags.' }
+          if ($existingTag) { throw "Tag $tag already exists; it will not be overwritten." }
+          $zip = "AutoBrightness-$tag-win-x64.zip"
+          Compress-Archive -Path dist/AutoBrightness/* -DestinationPath $zip
+          $digest = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$digest  $zip" | Set-Content SHA256SUMS.txt -Encoding ascii
+          gh release create $tag $zip SHA256SUMS.txt --target $env:GITHUB_SHA --title "AutoBrightness $tag for Windows" --notes-file $notes --latest
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub release creation failed.' }

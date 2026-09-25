@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="AutoBrightness.Core/AutoBrightness.Core.csproj" />
+  <Project Path="AutoBrightness.App/AutoBrightness.App.csproj" />
+  <Project Path="AutoBrightness.Tests/AutoBrightness.Tests.csproj" />
+</Solution>

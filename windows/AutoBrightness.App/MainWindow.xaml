@@ -1,0 +1,108 @@
+<Window x:Class="AutoBrightness.App.MainWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="AutoBrightness" Width="860" Height="720" MinWidth="760" MinHeight="620"
+ Background="#F3F5F8" Foreground="#192A40" FontFamily="Segoe UI" FontSize="14"
+ Loaded="WindowLoaded" Closing="WindowClosing" StateChanged="WindowStateChanged">
+ <Window.Resources>
+  <Style TargetType="Button">
+   <Setter Property="Padding" Value="18,10"/><Setter Property="Margin" Value="0,0,8,0"/>
+   <Setter Property="Background" Value="#E5EBF3"/><Setter Property="Foreground" Value="#192A40"/>
+   <Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+    <Border Background="{TemplateBinding Background}" CornerRadius="7" Padding="{TemplateBinding Padding}">
+     <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    </Border>
+    <ControlTemplate.Triggers>
+     <Trigger Property="IsMouseOver" Value="True"><Setter Property="Opacity" Value="0.85"/></Trigger>
+     <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45"/></Trigger>
+    </ControlTemplate.Triggers>
+   </ControlTemplate></Setter.Value></Setter>
+  </Style>
+  <Style TargetType="TextBox"><Setter Property="Padding" Value="8,6"/></Style>
+ </Window.Resources>
+ <ScrollViewer VerticalScrollBarVisibility="Auto">
+ <StackPanel Margin="28">
+  <DockPanel>
+   <Button DockPanel.Dock="Right" Content="Quit" Click="QuitClicked" VerticalAlignment="Top"/>
+   <StackPanel><TextBlock Text="AutoBrightness" FontSize="30" FontWeight="SemiBold"/>
+    <TextBlock Text="Comfortable screens. Quietly adjusted." Margin="0,5,0,0" Foreground="#607086"/>
+   </StackPanel>
+  </DockPanel>
+  <Border Background="White" CornerRadius="12" Padding="22" Margin="0,22,0,16">
+   <StackPanel>
+    <TextBlock x:Name="StatusTitle" Text="Ready when you are" FontSize="21" FontWeight="SemiBold"/>
+    <TextBlock x:Name="StatusText" Text="Choose comfortable brightness below, then turn on automatic. I'll learn this room as your starting point."
+     TextWrapping="Wrap" Margin="0,8,0,18" Foreground="#526479" AutomationProperties.Name="{Binding Text,RelativeSource={RelativeSource Self}}"/>
+    <WrapPanel>
+     <Button x:Name="StartButton" Content="Turn on automatic" Background="#1868C7" Foreground="White" FontWeight="SemiBold" Click="StartClicked"/>
+     <Button x:Name="RememberButton" Content="Use these levels for this room" Click="RememberClicked" ToolTip="Remember the current levels of both screens as comfortable for the current room lighting."/>
+    </WrapPanel>
+    <TextBlock x:Name="ExposureText" Text="Auto exposure will be turned off when you start." TextWrapping="Wrap" Foreground="#607086" FontSize="12" Margin="0,12,0,0"/>
+    <TextBlock x:Name="CameraHint" TextWrapping="Wrap" Foreground="#607086" FontSize="12" Margin="0,6,0,0"/>
+   </StackPanel>
+  </Border>
+  <TextBlock Text="Your screens" FontSize="19" FontWeight="SemiBold"/>
+  <TextBlock Text="Drag either slider to what feels comfortable. Each screen learns its own preference." TextWrapping="Wrap" Foreground="#607086" Margin="0,6,0,8"/>
+  <ItemsControl x:Name="DisplayCards">
+   <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2"/></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+   <ItemsControl.ItemTemplate><DataTemplate>
+    <Border Background="White" CornerRadius="12" Padding="20" Margin="0,0,10,10">
+     <StackPanel>
+      <TextBlock Text="{Binding Name,Mode=OneWay}" FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+      <DockPanel Margin="0,12,0,4">
+       <TextBlock Text="{Binding CurrentLabel}" FontSize="26" FontWeight="SemiBold"/>
+       <TextBlock Text="{Binding TargetLabel}" Foreground="#607086" VerticalAlignment="Bottom" HorizontalAlignment="Right"/>
+      </DockPanel>
+      <Slider Minimum="0" Maximum="100" TickFrequency="1" IsSnapToTickEnabled="True"
+       Value="{Binding SliderValue,Mode=TwoWay,UpdateSourceTrigger=PropertyChanged}" ValueChanged="SliderChanged"
+       IsEnabled="{Binding Supported}" AutomationProperties.Name="{Binding SliderName}" Margin="0,6"/>
+      <DockPanel>
+       <TextBlock Text="Dimmer" FontSize="11" Foreground="#607086"/>
+       <TextBlock Text="Brighter" HorizontalAlignment="Right" FontSize="11" Foreground="#607086"/>
+      </DockPanel>
+      <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,12,0,0" FontSize="12" Foreground="#607086"/>
+     </StackPanel>
+    </Border>
+   </DataTemplate></ItemsControl.ItemTemplate>
+  </ItemsControl>
+  <TextBlock Text="50% on one screen can look different from 50% on the other. Choose each by eye."
+   Foreground="#607086" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,16"/>
+  <Expander Header="Settings and test tools" x:Name="AdvancedExpander">
+   <Border Background="White" CornerRadius="10" Padding="18" Margin="0,10,10,0">
+    <StackPanel>
+     <StackPanel x:Name="CameraOptions">
+      <TextBlock Text="Camera" Margin="0,0,0,6"/>
+      <ComboBox x:Name="CameraBox" DisplayMemberPath="Name" SelectedValuePath="Id" Padding="8,6"/>
+      <WrapPanel Margin="0,12,0,0">
+       <TextBlock Text="Locked exposure (ms)" VerticalAlignment="Center" Margin="0,0,12,0"/>
+       <TextBox x:Name="ExposureBox" Text="31.25" Width="80"/>
+       <Button x:Name="RefreshButton" Content="Refresh devices" Click="RefreshClicked" Margin="16,0,0,0"/>
+      </WrapPanel>
+      <TextBlock Text="31.25 ms gathers four times more light than the old 7.81 ms setting (+2 stops). Exposure stays fixed. Pause to change it; your current screen levels become the new room reference."
+       Foreground="#607086" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"/>
+     </StackPanel>
+     <TextBlock Text="Automatic limits" FontWeight="SemiBold" Margin="0,18,0,8"/>
+     <ItemsControl x:Name="LimitsList"><ItemsControl.ItemTemplate><DataTemplate>
+      <WrapPanel Margin="0,0,0,8">
+       <CheckBox Content="{Binding Name}" IsChecked="{Binding Enabled}" IsEnabled="{Binding CanEditLimits}" Width="230" VerticalAlignment="Center"/>
+       <TextBlock Text="Lowest" VerticalAlignment="Center" Margin="0,0,8,0"/>
+       <TextBox Width="58" Text="{Binding Minimum,ValidatesOnExceptions=True}" IsEnabled="{Binding CanEditLimits}"/>
+       <TextBlock Text="Highest" VerticalAlignment="Center" Margin="16,0,8,0"/>
+       <TextBox Width="58" Text="{Binding Maximum,ValidatesOnExceptions=True}" IsEnabled="{Binding CanEditLimits}"/>
+      </WrapPanel>
+     </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+     <TextBlock x:Name="LightText" Text="Camera is off" Margin="0,10,0,6" AutomationProperties.Name="{Binding Text,RelativeSource={RelativeSource Self}}"/>
+     <WrapPanel Margin="0,8,0,0">
+      <CheckBox x:Name="RecordCheck" Content="Record a test log (numbers only)" VerticalAlignment="Center" Margin="0,0,18,0"/>
+      <Button x:Name="ScreenTestButton" Content="Test both screens" Click="ScreenTestClicked" ToolTip="Briefly adjusts each screen by five points, then restores it."/>
+     </WrapPanel>
+     <TextBlock x:Name="DiagnosticText" Text="No camera images are saved. Tests report actual brightness readback." TextWrapping="Wrap" Foreground="#607086" FontSize="12" Margin="0,10,0,0"/>
+    </StackPanel>
+   </Border>
+  </Expander>
+  <TextBlock Text="Close the window to keep it working in the tray. Camera access is released on pause or lock, and resumes after waking when automatic is enabled."
+   TextWrapping="Wrap" Foreground="#607086" FontSize="12" Margin="0,18,10,0"/>
+ </StackPanel>
+ </ScrollViewer>
+</Window>

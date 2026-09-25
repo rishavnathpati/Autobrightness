@@ -164,3 +164,9 @@ cython_debug/
 .idea/
 
 .vscode/
+
+# Windows / .NET
+**/bin/
+**/obj/
+.vs/
+!windows/AutoBrightness.App/app.manifest

@@ -1,119 +1,87 @@
-# Auto Brightness
+# AutoBrightness for Windows
 
-A Python application that automatically adjusts screen brightness based on ambient light using your webcam.
+One webcam adjusts your laptop screen and supported external monitors together. The Windows app is built in C# with .NET 10 and runs in the system tray, with a separate comfortable brightness level for each display.
 
-## Features
+**[Download the latest Windows x64 release](https://github.com/rishavnathpati/Autobrightness/releases/latest)** · [Detailed setup and hardware support](windows/README.md) · [Release notes](docs/releases/v2.3.0.md)
 
-- Automatic brightness adjustment based on ambient light
-- Manual exposure control
-- Smooth brightness transitions
-- Simple, efficient interface
-- Cross-platform support (Windows, macOS, Linux)
+## Get started
 
-## Requirements
+1. Download **AutoBrightness-v2.3.0-win-x64.zip** from the release page and extract it.
+2. Open **AutoBrightness.exe**. Python and a separate .NET installation are not required.
+3. Leave the webcam uncovered and choose a comfortable level for each screen.
+4. Click **Turn on automatic** to use those levels as your reference for the current room lighting.
+5. Close the window to keep it running in the tray. **Pause automatic** releases the webcam; **Quit** exits.
 
-- Python 3.8+
-- Webcam
-- Operating system permissions to adjust screen brightness
+Requires Windows 10 version 2004 or later, an x64 PC, a webcam that exposes manual exposure control, and a supported display brightness interface. Enable camera access in Windows if it is blocked. Pause automatic brightness before using another app that needs the webcam.
 
-## Installation
+## Screenshots
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/autobrightness.git
-cd autobrightness
+### Automatic brightness
+
+Each display has its own slider and target. Moving a slider teaches that screen a new preference. Equal percentages do not imply equal physical brightness.
+
+![AutoBrightness running with separate laptop and external-monitor controls, fixed exposure and a dark-scene status](images/windows/automatic-brightness.png)
+
+### Settings and hardware tests
+
+Choose the camera, fixed exposure and automatic limits. The screen test briefly changes each supported display, reads back its brightness and restores it. Pause automatic mode to edit camera settings or limits.
+
+![AutoBrightness settings showing fixed exposure, per-display limits and successful monitor readback tests](images/windows/settings-and-tests.png)
+
+These are screenshots of the running Windows app. Brightness values and camera readings reflect the particular test session; the images do not establish calibrated room illuminance.
+
+## What it does
+
+- **Controls both kinds of display.** Laptop panels use WMI; compatible external monitors use DDC/CI over supported HDMI, DisplayPort or USB-C display connections.
+- **Keeps exposure fixed.** Automatic exposure is disabled and verified. The default 31.25 ms is four times the previous ACER webcam exposure of 7.81 ms (+2 stops).
+- **Meters 25 regions.** A median of regional measurements reduces the influence of localized bright objects and shadows. Temporal filtering and a noise deadband reduce flicker.
+- **Moves smoothly.** Small, frequent brightness steps target roughly 1–3 second transitions. Brightening is slightly faster than dimming; actual monitor latency varies.
+- **Learns each screen separately.** Slider adjustments and confirmed native brightness changes update that display's reference. Automatic limits default to 10–100%; manual sliders offer 0–100% where supported.
+- **Treats darkness as normal.** Black frames keep automatic mode active. Missing frames or a lost exposure lock are reported as camera failures.
+- **Keeps processing local.** Camera frames remain in memory. The app saves no webcam images or audio and has no network client. Optional test logs contain numbers only.
+
+## Hardware and current limitations
+
+DDC/CI must be enabled on the external monitor. Docks, adapters, KVMs, display drivers and some picture/HDR modes may prevent brightness control. A USB-C connector alone does not guarantee support. Unsupported displays are shown with a reason.
+
+A webcam measures image brightness, not lux. Screen reflections, large foreground changes, camera gain and image processing can affect it even with exposure locked. This app does not match screen luminance in nits. Higher exposure improves light collection but cannot recover a scene with no light and can clip bright rooms.
+
+**Known observation in v2.3.0:** the ACER test webcam returned near-black frames at 31.25 ms during part of testing, then later reported about 118/255 without restarting or changing exposure. Automatic mode stayed active and both displays reacted. Physical room lighting was not controlled, so the cause of the earlier black signal and improved low-light sensitivity are not established. A visibly lit room returning black still needs camera/driver investigation.
+
+Sleep, session unlock and display reconnection recovery are implemented but need longer hardware evaluation. Battery impact has not been measured. Launch at Windows sign-in is not installed automatically.
+
+## Validation
+
+- **33 deterministic tests pass**, covering image metering, dark scenes, foreground objects, filtering, transitions, independent displays, manual preferences, delayed readback, failures and settings migration.
+- Real WMI and DDC/CI tests passed on a laptop panel and an MSI MAG 27CQ6F, including brightness changes, readback and restoration.
+- The real EXE was exercised through its Windows UI. Fixed exposure was confirmed through the camera driver.
+
+See the [test report](docs/TEST-REPORT-v2.3.0.md) for evidence and the distinction between simulated lighting tests and actual optical testing.
+
+## Build from source
+
+Install the .NET 10 SDK on Windows, then run:
+
+```powershell
+git clone https://github.com/rishavnathpati/Autobrightness.git
+cd Autobrightness
+dotnet build windows/AutoBrightness.slnx -c Release
+dotnet run --project windows/AutoBrightness.Tests -c Release --no-build
+dotnet run --project windows/AutoBrightness.App -c Release
 ```
 
-2. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+For standalone publishing, diagnostics, settings locations and design details, see [windows/README.md](windows/README.md).
 
-## Usage
+| Directory | Purpose |
+| --- | --- |
+| `windows/AutoBrightness.App` | WPF interface, tray, camera capture, WMI and DDC/CI |
+| `windows/AutoBrightness.Core` | Light metering, filtering, curves and brightness coordination |
+| `windows/AutoBrightness.Tests` | Deterministic regression tests with simulated hardware |
+| `docs` | Test evidence, release notes and legacy instructions |
+| `src` | Original Python implementation |
 
-Run the application:
-```bash
-python main.py
-```
+GitHub Actions builds and tests changes and packages the Windows app. A push to `master` whose commit subject starts with `release: v` publishes the version from the app project after checks pass, using `docs/releases/v<version>.md`. Other commits and pull requests only build and test. Existing release tags are never overwritten. See the [workflow](.github/workflows/build.yaml).
 
-### Controls
+## Original Python app
 
-- **Brightness Threshold**: Adjusts how the application maps ambient light to screen brightness
-- **Exposure**: Controls the webcam exposure level
-- **Smooth Transitions**: Enable/disable gradual brightness changes
-- **Reset**: Reset all settings to defaults
-- **Start/Stop**: Toggle automatic brightness adjustment
-
-## Configuration
-
-The application settings are stored in `config.json` in the application directory. Default settings:
-
-```json
-{
-    "camera": {
-        "device_index": 0,
-        "fps": 30,
-        "default_exposure": -2
-    },
-    "brightness": {
-        "default_threshold": 190,
-        "smoothing_factor": 0.1,
-        "min_brightness": 0,
-        "max_brightness": 100
-    },
-    "ui": {
-        "preview_width": 360,
-        "preview_height": 270
-    },
-    "advanced": {
-        "smooth_transitions": true
-    }
-}
-```
-
-### Permissions
-
-#### Windows
-No special permissions required.
-
-#### macOS
-The application requires accessibility permissions to control screen brightness:
-1. Open System Preferences
-2. Go to Security & Privacy
-3. Click on the Privacy tab
-4. Select 'Accessibility' from the left sidebar
-5. Click the lock icon to make changes
-6. Check the box next to the application
-7. Restart the application
-
-#### Linux
-Ensure your user has permissions to adjust screen brightness. You may need to add your user to the `video` group:
-```bash
-sudo usermod -a -G video $USER
-```
-
-## Logging
-
-Logs are stored in the `logs` directory with the naming format `autobrightness_YYYYMMDD.log`.
-
-## Project Structure
-
-```
-autobrightness/
-├── logs/
-├── src/
-│   ├── __init__.py
-│   ├── app.py
-│   ├── brightness_control.py
-│   ├── config.py
-│   ├── logger.py
-│   ├── ui.py
-│   └── webcam_controller.py
-├── main.py
-├── requirements.txt
-└── README.md
-```
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+The Python code remains in `src/` and `main.py` for reference. Its historical setup is in [Legacy Python documentation](docs/legacy-python.md); those instructions do not apply to the C# executable.
