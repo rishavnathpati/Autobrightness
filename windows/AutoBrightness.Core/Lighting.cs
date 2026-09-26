@@ -1,22 +1,5 @@
 namespace AutoBrightness.Core;
 
-public sealed record Calibration(double Dark = 15, double Bright = 180, double Curve = 0.75)
-{
-    public void Validate()
-    {
-        if (!double.IsFinite(Dark) || !double.IsFinite(Bright) || !double.IsFinite(Curve) ||
-            Dark < 0 || Bright > 255 || Bright - Dark < 5 || Curve < 0.2 || Curve > 3)
-            throw new ArgumentException("Dark and bright camera levels must be 0–255 and at least 5 apart; curve must be 0.2–3.");
-    }
-
-    public double Normalize(double light)
-    {
-        Validate();
-        if (!double.IsFinite(light)) throw new ArgumentException("Invalid camera reading.");
-        return Math.Pow(Math.Clamp((light - Dark) / (Bright - Dark), 0, 1), Curve);
-    }
-}
-
 public sealed record DisplayProfile(bool Enabled = true, int Minimum = 10, int Maximum = 100,
     int? PreferredBrightness = null, double? ReferenceLight = null)
 {
@@ -27,7 +10,6 @@ public sealed record DisplayProfile(bool Enabled = true, int Minimum = 10, int M
         if (PreferredBrightness is < 0 or > 100 || (ReferenceLight is double reference && (!double.IsFinite(reference) || reference < 0 || reference > 255)))
             throw new ArgumentException("Invalid preferred brightness or room reference.");
     }
-    public double Map(double normalized) => Minimum + (Maximum - Minimum) * Math.Clamp(normalized, 0, 1);
 
     public DisplayProfile WithRoomReference(int brightness, double light)
     {
@@ -41,9 +23,11 @@ public sealed record DisplayProfile(bool Enabled = true, int Minimum = 10, int M
         return profile;
     }
 
-    public double Target(double light, double legacyNormalized)
+    public double Target(double light)
     {
-        if (PreferredBrightness is not int preferred || ReferenceLight is not double reference) return Map(legacyNormalized);
+        if (!double.IsFinite(light) || light is < 0 or > 255) throw new ArgumentException("Invalid camera reading.");
+        if (PreferredBrightness is not int preferred || ReferenceLight is not double reference)
+            throw new InvalidOperationException("Set a room reference before calculating brightness.");
         // Changes in illumination are perceived roughly proportionally, rather than as raw pixel differences.
         // The noise floor avoids huge changes caused by a one-unit reading in a very dark scene.
         var change = 18 * Math.Log2((Math.Clamp(light, 0, 255) + 8) / (reference + 8));
@@ -53,16 +37,21 @@ public sealed record DisplayProfile(bool Enabled = true, int Minimum = 10, int M
 
 public sealed class AmbientFilter
 {
-    private readonly Queue<double> _samples = new();
+    private readonly double[] _samples = new double[3];
+    private int _count, _next;
     private double? _value;
     private double? _target;
     public double Update(double light, double seconds)
     {
         if (!double.IsFinite(light) || !double.IsFinite(seconds) || seconds < 0) throw new ArgumentException("Invalid light sample.");
-        _samples.Enqueue(Math.Clamp(light, 0, 255));
-        if (_samples.Count > 3) _samples.Dequeue();
-        var ordered = _samples.Order().ToArray();
-        var median = ordered[ordered.Length / 2];
+        _samples[_next] = Math.Clamp(light, 0, 255);
+        _next = (_next + 1) % _samples.Length;
+        _count = Math.Min(_count + 1, _samples.Length);
+        Span<double> ordered = stackalloc double[3];
+        _samples.AsSpan(0, _count).CopyTo(ordered);
+        ordered = ordered[.._count];
+        ordered.Sort();
+        var median = ordered[_count / 2];
         _target ??= median;
         // Reject noise at the input, then finish moving to the accepted reading.
         // Applying the deadband to the smoothed value leaves a long, incomplete tail.
@@ -107,22 +96,6 @@ public static class LightMeter
         regions.Sort();
         var pixelsCount = (double)width * height;
         return new SceneLight(regions[12], dark / pixelsCount, clipped / pixelsCount);
-    }
-
-    // Trim both tails of the histogram so a small lamp or dark patch does not dominate.
-    // This is gamma-encoded camera luma (0–255), not a calibrated lux measurement.
-    public static double MeasureBgra(ReadOnlySpan<byte> pixels)
-    {
-        if (pixels.Length < 4 || pixels.Length % 4 != 0)
-            throw new ArgumentException("A nonempty, tightly packed BGRA image is required.");
-        Span<int> histogram = stackalloc int[256];
-        histogram.Clear();
-        for (var i = 0; i < pixels.Length; i += 4)
-        {
-            var luma = Luma(pixels, i);
-            histogram[luma]++;
-        }
-        return TrimmedMean(histogram, pixels.Length / 4);
     }
 
     private static int Luma(ReadOnlySpan<byte> pixels, int offset) =>

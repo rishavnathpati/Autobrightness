@@ -31,6 +31,7 @@ jobs:
           Copy-Item windows/README.md dist/AutoBrightness/README.md
           Copy-Item "docs/TEST-REPORT-v$version.md" dist/AutoBrightness/TEST-REPORT.md
           Copy-Item "docs/releases/v$version.md" dist/AutoBrightness/RELEASE-NOTES.md
+          Copy-Item docs/implementation-cleanup.md dist/AutoBrightness/IMPLEMENTATION-NOTES.md
       - uses: actions/upload-artifact@v4
         with:
           name: AutoBrightness-win-x64

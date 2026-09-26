@@ -13,7 +13,7 @@ public interface IDisplayBrightness : IDisposable
 public sealed record DisplayPlan(IDisplayBrightness Device, DisplayProfile Profile);
 public sealed record DisplayReading(string Id, int? Brightness, string Status, double? Target = null,
     int? Observed = null, DisplayProfile? LearnedProfile = null);
-public sealed record CycleResult(bool ManualOverride, IReadOnlyList<DisplayReading> Displays);
+public sealed record CycleResult(IReadOnlyList<DisplayReading> Displays);
 
 // Single-worker coordinator. Device discovery/lifetime and camera ownership are outside it.
 public sealed class BrightnessCoordinator
@@ -36,18 +36,12 @@ public sealed class BrightnessCoordinator
     }
 
     private readonly State[] _states;
-    private readonly Calibration _calibration;
-    private readonly bool _learnManualChanges;
-    private readonly AmbientFilter? _filter;
+    private readonly AmbientFilter _filter = new();
     private TimeSpan? _lastSample;
     public double FilteredLight { get; private set; }
 
-    public BrightnessCoordinator(IEnumerable<DisplayPlan> plans, Calibration calibration, bool learnManualChanges = false, bool smoothLight = false)
+    public BrightnessCoordinator(IEnumerable<DisplayPlan> plans)
     {
-        calibration.Validate();
-        _calibration = calibration;
-        _learnManualChanges = learnManualChanges;
-        _filter = smoothLight ? new AmbientFilter() : null;
         _states = plans.Where(p => p.Profile.Enabled).Select(p =>
         {
             p.Profile.Validate();
@@ -58,16 +52,15 @@ public sealed class BrightnessCoordinator
 
     public CycleResult Tick(double light, TimeSpan now, bool newLightSample = true)
     {
-        _calibration.Normalize(light); // Validate before touching hardware.
+        if (!double.IsFinite(light) || light is < 0 or > 255) throw new ArgumentException("Invalid camera reading.");
         // The ramp runs faster than the camera. Do not count a reused frame twice
         // in the median filter, or a single flash could pass as sustained light.
         if (newLightSample || _lastSample is null)
         {
-            FilteredLight = _filter?.Update(light, _lastSample is { } previous ? Math.Max(0, (now - previous).TotalSeconds) : 0) ?? light;
+            FilteredLight = _filter.Update(light, _lastSample is { } previous ? Math.Max(0, (now - previous).TotalSeconds) : 0);
             _lastSample = now;
         }
-        var level = _calibration.Normalize(FilteredLight);
-        // Read all displays first. Learn manual changes, or pause in legacy coordinator mode.
+        // Read all displays first, confirming native manual changes before learning them.
         foreach (var state in _states)
         {
             state.Learned = null;
@@ -78,6 +71,11 @@ public sealed class BrightnessCoordinator
                 {
                     state.Applied = state.Plan.Device.Read();
                     state.Observed = state.Applied;
+                    if (state.Plan.Profile.ReferenceLight is null || state.Plan.Profile.PreferredBrightness is null)
+                    {
+                        state.Learned = state.Plan.Profile.WithRoomReference(state.Applied.Value, FilteredLight);
+                        state.Plan = state.Plan with { Profile = state.Learned };
+                    }
                     state.Ramp = new BrightnessRamp(state.Applied.Value);
                     state.LastRead = state.LastTick = now;
                     RememberCommand(state, state.Applied.Value, now);
@@ -93,30 +91,23 @@ public sealed class BrightnessCoordinator
                     var delayedReadback = state.RecentCommands.Any(command => Math.Abs(command.Level - actual) <= 2);
                     if (Math.Abs(actual - state.Applied!.Value) > 2 && !delayedReadback)
                     {
-                        if (_learnManualChanges)
+                        // DDC readback may lag writes. Confirm a new value before teaching it,
+                        // and stop writing this device meanwhile so we do not fight the user.
+                        if (state.ManualCandidate is not int candidate || Math.Abs(candidate - actual) > 2)
                         {
-                            // DDC readback may lag writes. Confirm a new value before teaching it,
-                            // and stop writing this device meanwhile so we do not fight the user.
-                            if (state.ManualCandidate is not int candidate || Math.Abs(candidate - actual) > 2)
-                            {
-                                state.ManualCandidate = actual;
-                                state.LastTick = now;
-                                state.Status = "Checking manual change";
-                                continue;
-                            }
-                            state.ManualCandidate = null;
-                            state.Applied = actual;
-                            state.Learned = state.Plan.Profile with { PreferredBrightness = actual, ReferenceLight = FilteredLight,
-                                Minimum = Math.Min(actual, state.Plan.Profile.Minimum), Maximum = Math.Max(actual, state.Plan.Profile.Maximum) };
-                            state.Plan = state.Plan with { Profile = state.Learned };
-                            state.Ramp = new BrightnessRamp(actual);
+                            state.ManualCandidate = actual;
                             state.LastTick = now;
-                            state.Status = "Preference learned";
+                            state.Status = "Checking manual change";
                             continue;
                         }
+                        state.ManualCandidate = null;
                         state.Applied = actual;
-                        state.Status = "Manual change detected — group paused";
-                        return Snapshot(true);
+                        state.Learned = state.Plan.Profile.WithRoomReference(actual, FilteredLight);
+                        state.Plan = state.Plan with { Profile = state.Learned };
+                        state.Ramp = new BrightnessRamp(actual);
+                        state.LastTick = now;
+                        state.Status = "Preference learned";
+                        continue;
                     }
                     state.ManualCandidate = null;
                 }
@@ -133,7 +124,7 @@ public sealed class BrightnessCoordinator
             {
                 var elapsed = (now - state.LastTick).TotalSeconds;
                 state.LastTick = now;
-                state.Target = state.Plan.Profile.Target(FilteredLight, level);
+                state.Target = state.Plan.Profile.Target(FilteredLight);
                 var requested = state.Ramp.Advance(state.Target.Value, elapsed);
                 if (Math.Abs(requested - state.Applied!.Value) >= 1)
                 {
@@ -148,7 +139,7 @@ public sealed class BrightnessCoordinator
             }
             catch (Exception ex) { Failed(state, now, ex); }
         }
-        return Snapshot(false);
+        return Snapshot();
     }
 
     private static void Failed(State state, TimeSpan now, Exception error)
@@ -169,7 +160,7 @@ public sealed class BrightnessCoordinator
         while (state.RecentCommands.Count > 256) state.RecentCommands.Dequeue();
     }
 
-    private CycleResult Snapshot(bool manual) => new(manual,
+    private CycleResult Snapshot() => new(
         _states.Select(s => new DisplayReading(s.Plan.Device.Id, s.Applied, s.Status, s.Target, s.Observed, s.Learned)).ToArray());
 
     // Serialized with Tick by the host. A user-selected preference takes effect immediately.
@@ -178,9 +169,7 @@ public sealed class BrightnessCoordinator
         var state = _states.Single(s => s.Plan.Device.Id == id);
         if (!double.IsFinite(light) || light < 0 || light > 255) throw new ArgumentException("Invalid light reading.");
         var actual = state.Plan.Device.Write(Math.Clamp(percent, 0, 100));
-        var profile = state.Plan.Profile with { PreferredBrightness = actual, ReferenceLight = _lastSample is null ? light : FilteredLight,
-            Minimum = Math.Min(actual, state.Plan.Profile.Minimum), Maximum = Math.Max(actual, state.Plan.Profile.Maximum) };
-        profile.Validate();
+        var profile = state.Plan.Profile.WithRoomReference(actual, _lastSample is null ? light : FilteredLight);
         state.Plan = state.Plan with { Profile = profile };
         state.Applied = state.Observed = actual;
         state.ManualCandidate = null;

@@ -8,9 +8,7 @@ public sealed class Settings
     public int Version { get; set; } = 3;
     public bool AutomaticEnabled { get; set; }
     public string? CameraId { get; set; }
-    public bool SharedCamera { get; set; }
     public double ExposureMilliseconds { get; set; } = 31.25;
-    public Calibration Calibration { get; set; } = new();
     public Dictionary<string, DisplayProfile> Displays { get; set; } = [];
     public static string DirectoryPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AutoBrightness");
     private static string FilePath => Path.Combine(DirectoryPath, "settings.json");
@@ -23,7 +21,6 @@ public sealed class Settings
             if (!File.Exists(FilePath)) return new Settings();
             var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath)) ?? throw new InvalidDataException("Empty settings.");
             settings.Upgrade();
-            settings.SharedCamera = false;
             settings.Validate();
             return settings;
         }
@@ -37,9 +34,8 @@ public sealed class Settings
 
     public void Validate()
     {
-        if (Version != 3 || Calibration is null || Displays is null || !double.IsFinite(ExposureMilliseconds) || ExposureMilliseconds < 0.1 || ExposureMilliseconds > 1000)
+        if (Version != 3 || Displays is null || !double.IsFinite(ExposureMilliseconds) || ExposureMilliseconds < 0.1 || ExposureMilliseconds > 1000)
             throw new ArgumentException("Invalid settings or exposure (valid range: 0.1–1000 ms).");
-        Calibration.Validate();
         foreach (var profile in Displays.Values) profile.Validate();
     }
 

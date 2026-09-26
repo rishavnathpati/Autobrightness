@@ -31,7 +31,7 @@ public partial class App : Application
                     try
                     {
                         var coordinator = new BrightnessCoordinator(devices.Select(d => new DisplayPlan(d,
-                            new DisplayProfile(true, 10, 100, originals[d.Id], 40))), new Calibration(), true, true);
+                            new DisplayProfile(true, 10, 100, originals[d.Id], 40))));
                         var clock = System.Diagnostics.Stopwatch.StartNew();
                         var previous = new Dictionary<string, int>(originals);
                         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
@@ -51,7 +51,7 @@ public partial class App : Application
                                 if (Math.Abs(brightness - previous[reading.Id]) > 14) errors.Add($"Large command step on {reading.Id}");
                                 if (elapsed.TotalSeconds is >= 6 and < 9 or >= 12)
                                 {
-                                    var target = new DisplayProfile(true, 10, 100, originals[reading.Id], 40).Target(light, 0);
+                                    var target = new DisplayProfile(true, 10, 100, originals[reading.Id], 40).Target(light);
                                     if (Math.Abs(brightness - target) > 1) errors.Add($"Transition exceeded 3s: {reading.Id}");
                                 }
                                 previous[reading.Id] = brightness;
@@ -127,7 +127,7 @@ public partial class App : Application
                 if (!double.IsFinite(exposure) || exposure is < 0.1 or > 1000) throw new ArgumentException("Exposure must be 0.1–1000 ms.");
                 string? error = null;
                 sensor.Failed += message => error = message;
-                await sensor.StartAsync(camera.Id, false, exposure);
+                await sensor.StartAsync(camera.Id, exposure);
                 var readings = new List<double>();
                 var samples = new List<LightSample>();
                 for (var i = 0; i < 10; i++)

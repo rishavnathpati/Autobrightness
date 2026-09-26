@@ -29,8 +29,10 @@ public partial class MainWindow : Window
     private bool _busy, _cameraRunning, _exit, _wantAutomatic, _suspended, _refreshPending, _syncSliders;
     private string? _pendingStop;
     private long _lastExposureCheck;
+    private long _lastUiSample;
     private bool _record;
     private string? _tracePath;
+    private long _traceBytes;
     private readonly string? _loadWarning;
 
     public MainWindow()
@@ -118,7 +120,7 @@ public partial class MainWindow : Window
             throw new ArgumentException("Exposure must be a number between 0.1 and 1000 ms.");
         var cameraId = (CameraBox.SelectedItem as CameraChoice)?.Id ?? throw new InvalidOperationException("Choose a webcam first.");
         var changed = cameraId != _settings.CameraId || exposure != _settings.ExposureMilliseconds;
-        _settings.CameraId = cameraId; _settings.ExposureMilliseconds = exposure; _settings.SharedCamera = false;
+        _settings.CameraId = cameraId; _settings.ExposureMilliseconds = exposure;
         foreach (var row in _rows)
         {
             var old = _settings.Displays.GetValueOrDefault(row.Entry.Id) ?? new DisplayProfile();
@@ -136,7 +138,7 @@ public partial class MainWindow : Window
         ExposureText.Text = "Starting camera…";
         CameraHint.Text = "";
         LightText.Text = "Waiting for camera frames…";
-        await _sensor.StartAsync(_settings.CameraId!, false, _settings.ExposureMilliseconds);
+        await _sensor.StartAsync(_settings.CameraId!, _settings.ExposureMilliseconds);
         _cameraRunning = true;
         await Task.Delay(1800);
         _sensor.VerifyExposureLock();
@@ -164,14 +166,15 @@ public partial class MainWindow : Window
             }
             plans.Add(new DisplayPlan(row.Entry.Device!, profile));
         }
-        _coordinator = new BrightnessCoordinator(plans, new Calibration(), learnManualChanges: true, smoothLight: true);
+        _coordinator = new BrightnessCoordinator(plans);
         _wantAutomatic = _settings.AutomaticEnabled = true;
         _settings.Save();
         _record = RecordCheck.IsChecked == true;
         if (_record)
         {
             Directory.CreateDirectory(Settings.DirectoryPath);
-            _tracePath = Path.Combine(Settings.DirectoryPath, $"test-{DateTime.Now:yyyyMMdd-HHmmss}.jsonl");
+            _tracePath = Path.Combine(Settings.DirectoryPath, $"test-{DateTime.Now:yyyyMMdd-HHmmss-fff}.jsonl");
+            _traceBytes = 0;
             DiagnosticText.Text = "Recording numeric test data: " + _tracePath;
         }
         _cancellation = new CancellationTokenSource();
@@ -181,6 +184,7 @@ public partial class MainWindow : Window
             var clock = Stopwatch.StartNew();
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(100));
             long lastSampleTimestamp = -1;
+            CycleResult? previousCycle = null;
             try
             {
                 while (await timer.WaitForNextTickAsync(token))
@@ -196,14 +200,19 @@ public partial class MainWindow : Window
                         lastSampleTimestamp = sample.Timestamp;
                         filtered = _coordinator.FilteredLight;
                     }
-                    if (_record && _tracePath is not null)
+                    if (_record && _tracePath is not null && _traceBytes < 2_000_000)
                     {
                         var entry = new { Time = DateTimeOffset.UtcNow, Light = sample.Level, FilteredLight = filtered,
                             ExposureLocked = true, sample.DarkPixelFraction, sample.ClippedPixelFraction, Displays = cycle.Displays };
-                        if (!File.Exists(_tracePath) || new FileInfo(_tracePath).Length < 2_000_000)
-                            await File.AppendAllTextAsync(_tracePath, JsonSerializer.Serialize(entry) + Environment.NewLine, token);
+                        var line = JsonSerializer.Serialize(entry) + Environment.NewLine;
+                        var bytes = System.Text.Encoding.UTF8.GetByteCount(line);
+                        if (_traceBytes + bytes <= 2_000_000)
+                            await File.AppendAllTextAsync(_tracePath, line, token);
+                        _traceBytes += bytes;
                     }
-                    await Dispatcher.InvokeAsync(() => ApplyCycle(cycle));
+                    if (previousCycle is null || !cycle.Displays.SequenceEqual(previousCycle.Displays))
+                        await Dispatcher.InvokeAsync(() => ApplyCycle(cycle));
+                    previousCycle = cycle;
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -237,6 +246,7 @@ public partial class MainWindow : Window
         if (_worker is not null) { try { await _worker; } catch (OperationCanceledException) { } _worker = null; }
         _cancellation?.Dispose(); _cancellation = null; _coordinator = null;
         await _sensor.StopAsync(); _cameraRunning = false;
+        _lastUiSample = 0;
         ExposureText.Text = "Camera is OFF · Automatic is paused. Current brightness is preserved.";
         CameraHint.Text = "";
         LightText.Text = "Camera is off";
@@ -314,7 +324,9 @@ public partial class MainWindow : Window
             CameraHint.Text = "";
             return;
         }
-        ExposureText.Text = $"Camera is ON · {_sensor.ModeDescription.Split(". ")[0]} · Light {sample.Level:0.0} / 255";
+        if (sample.Timestamp == _lastUiSample) return;
+        _lastUiSample = sample.Timestamp;
+        ExposureText.Text = $"Camera is ON · {_sensor.ModeDescription} · Light {sample.Level:0.0} / 255";
         LightText.Text = $"Live camera light: {sample.Level:0.0} / 255 · auto exposure is OFF";
         CameraHint.Text = sample.Level < 3
             ? "Dark scene · Automatic is active."
@@ -406,25 +418,30 @@ public sealed class DisplayRow : INotifyPropertyChanged
     public bool Pending; public long EditedAt;
     public bool Enabled { get; set; }
     private bool _canEdit;
-    public bool CanEditLimits { get => _canEdit; set { _canEdit = value; Changed(); } }
+    public bool CanEditLimits { get => _canEdit; set => Set(ref _canEdit, value); }
     private int _minimum, _maximum;
-    public int Minimum { get => _minimum; set { if (value is < 0 or > 100) throw new ArgumentException("Use 0–100"); _minimum = value; Changed(); } }
-    public int Maximum { get => _maximum; set { if (value is < 0 or > 100) throw new ArgumentException("Use 0–100"); _maximum = value; Changed(); } }
+    public int Minimum { get => _minimum; set { if (value is < 0 or > 100) throw new ArgumentException("Use 0–100"); Set(ref _minimum, value); } }
+    public int Maximum { get => _maximum; set { if (value is < 0 or > 100) throw new ArgumentException("Use 0–100"); Set(ref _maximum, value); } }
     private double _slider;
-    public double SliderValue { get => _slider; set { _slider = value; Changed(); } }
+    public double SliderValue { get => _slider; set => Set(ref _slider, value); }
     private int? _current;
-    public int? Current { get => _current; set { _current = value; Changed(nameof(CurrentLabel)); } }
+    public int? Current { get => _current; set => Set(ref _current, value, nameof(CurrentLabel)); }
     public string CurrentLabel => Current is int level ? $"{level}%" : "Unavailable";
     private double? _target;
-    public double? Target { get => _target; set { _target = value; Changed(nameof(TargetLabel)); } }
+    public double? Target { get => _target; set => Set(ref _target, value, nameof(TargetLabel)); }
     public string TargetLabel => Target is double value ? $"Target {value:0}%" : "";
     private string _status;
-    public string Status { get => _status; set { _status = value; Changed(); } }
+    public string Status { get => _status; set => Set(ref _status, value); }
     public DisplayRow(DisplayEntry entry, DisplayProfile profile)
     {
         Entry = entry; Enabled = profile.Enabled && entry.Supported; _minimum = profile.Minimum; _maximum = profile.Maximum;
         _current = entry.InitialBrightness; _slider = entry.InitialBrightness ?? 50; _status = entry.Detail;
     }
     public event PropertyChangedEventHandler? PropertyChanged;
-    private void Changed([CallerMemberName] string? name = null) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    private void Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
+    {
+        if (EqualityComparer<T>.Default.Equals(field, value)) return;
+        field = value;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    }
 }

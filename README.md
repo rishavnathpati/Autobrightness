@@ -52,11 +52,11 @@ Sleep, session unlock and display reconnection recovery are implemented but need
 
 ## Validation
 
-- **33 deterministic tests pass**, covering image metering, dark scenes, foreground objects, filtering, transitions, independent displays, manual preferences, delayed readback, failures and settings migration.
+- **36 deterministic tests pass** in the current source, covering image metering, dark scenes, foreground objects, filtering, transitions, independent displays, manual preferences, delayed readback, failures, saved-setting compatibility and allocation-free filtering.
 - Real WMI and DDC/CI tests passed on a laptop panel and an MSI MAG 27CQ6F, including brightness changes, readback and restoration.
 - The real EXE was exercised through its Windows UI. Fixed exposure was confirmed through the camera driver.
 
-See the [test report](docs/TEST-REPORT-v2.3.0.md) for evidence and the distinction between simulated lighting tests and actual optical testing.
+See the [v2.3.0 test report](docs/TEST-REPORT-v2.3.0.md) for release evidence and the distinction between simulated lighting tests and actual optical testing. The subsequent [implementation cleanup](docs/implementation-cleanup.md) documents changes and measurements in the current source; those changes are not part of the already-published v2.3.0 binary.
 
 ## Build from source
 
@@ -77,11 +77,8 @@ For standalone publishing, diagnostics, settings locations and design details, s
 | `windows/AutoBrightness.App` | WPF interface, tray, camera capture, WMI and DDC/CI |
 | `windows/AutoBrightness.Core` | Light metering, filtering, curves and brightness coordination |
 | `windows/AutoBrightness.Tests` | Deterministic regression tests with simulated hardware |
-| `docs` | Test evidence, release notes and legacy instructions |
-| `src` | Original Python implementation |
+| `docs` | Test evidence, release notes and implementation notes |
 
 GitHub Actions builds and tests changes and packages the Windows app. A push to `master` whose commit subject starts with `release: v` publishes the version from the app project after checks pass, using `docs/releases/v<version>.md`. Other commits and pull requests only build and test. Existing release tags are never overwritten. See the [workflow](.github/workflows/build.yaml).
 
-## Original Python app
-
-The Python code remains in `src/` and `main.py` for reference. Its historical setup is in [Legacy Python documentation](docs/legacy-python.md); those instructions do not apply to the C# executable.
+The retired Python app and its dependencies, configuration and screenshots have been removed from the working tree. They remain available in [Git history](https://github.com/rishavnathpati/Autobrightness/tree/v2.3.0/src).
